@@ -1,6 +1,6 @@
 <html lang="en">
 <head>
-  <title>Amjs softbody rope demo</title>
+  <title>Chain - Threejs + Ammo</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
   <style>
@@ -213,11 +213,17 @@
 		var chainShape = new Ammo.btCapsuleShapeX(0.2, 0.6);
     var anchor = new THREE.Vector3(1,0,0);
 		var anchor = new THREE.Vector3(0, 10, -5);
-		const numLinks = 20;
+		const numLinks = 8;
 		var link = [];
+
+    var chainMaterial = new THREE.MeshPhongMaterial( {
+      color: 0xff7a50 ,
+      shininess: 60
+    } );
+
 		for (var i = 0; i < numLinks; i++) {
       var linkEnd = new THREE.Vector3(1,0,0);
-      let nodeMesh = new THREE.Mesh( new CapsuleMesh( 0.2, 0.6 ), new THREE.MeshPhongMaterial( { color: 0x202020 } ) );
+      let nodeMesh = new THREE.Mesh( new CapsuleMesh( 0.2, 0.6 ), chainMaterial );
       nodeMesh.castShadow = true;
       nodeMesh.receiveShadow = true;
       var chainOrigin = new THREE.Vector3();
@@ -226,11 +232,9 @@
         createRigidBody(nodeMesh, chainShape, chainMass, chainOrigin, chainQuat)
       );
 		}
-    var linkEnd = new THREE.Vector3(1,0,0);
-    var leftEnd = new THREE.Vector3();
-    leftEnd.copy(linkEnd).multiplyScalar(0.5);
-    var rightEnd = new THREE.Vector3();
-    rightEnd.copy(linkEnd).multiplyScalar(0.5);
+    var linkEnd = new Ammo.btVector3(1,0,0);
+    var leftEnd = new Ammo.btVector3(0.5, 0, 0);
+    var rightEnd = new Ammo.btVector3(-0.5, 0, 0);
 
     physicsWorld.addConstraint(
 			new Ammo.btPoint2PointConstraint(link[0], rightEnd), true
