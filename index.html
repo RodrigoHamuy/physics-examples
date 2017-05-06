@@ -100,11 +100,11 @@
     scene = new THREE.Scene();
 
     camera.position.x = -7;
-    camera.position.y = 5;
-    camera.position.z =  18;
+    camera.position.y = 4;
+    camera.position.z =  6;
 
     controls = new THREE.OrbitControls( camera );
-    controls.target.y = 2;
+    controls.target.copy(new THREE.Vector3(0, 4, -5));
 
     renderer = new THREE.WebGLRenderer();
     renderer.setClearColor( 0xbfd1e5 );
@@ -217,17 +217,15 @@
 		var link = [];
 
     var chainMaterial = new THREE.MeshPhongMaterial( {
-      color: 0xff7a50 ,
-      shininess: 60
+      color: 0xff01c6 ,
+      shininess: 120
     } );
 
 		for (var i = 0; i < numLinks; i++) {
-      var linkEnd = new THREE.Vector3(1,0,0);
       let nodeMesh = new THREE.Mesh( new CapsuleMesh( 0.2, 0.6 ), chainMaterial );
       nodeMesh.castShadow = true;
       nodeMesh.receiveShadow = true;
-      var chainOrigin = new THREE.Vector3();
-      chainOrigin.copy(anchor).add( linkEnd.multiplyScalar(i+0.5) );
+      var chainOrigin = new THREE.Vector3(1*(i+0.5), 10, -5);
       link.push(
         createRigidBody(nodeMesh, chainShape, chainMass, chainOrigin, chainQuat)
       );
