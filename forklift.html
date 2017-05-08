@@ -71,6 +71,14 @@
   var time = 0;
   var armMovement = 0;
 
+	var clickRequest = false;
+	var mouseCoords = new THREE.Vector2();
+	var raycaster = new THREE.Raycaster();
+	var ballMaterial = new THREE.MeshPhongMaterial( { color: 0x202020 } );
+	var pos = new THREE.Vector3();
+	var quat = new THREE.Quaternion();
+
+
   // - Main code -
 
   init();
@@ -168,6 +176,9 @@
     merged.merge(suppShapeMesh);
 
     matrix = new THREE.Matrix4();
+    matrix.makeTranslation(0, -.75, 0 );
+    merged.applyMatrix(matrix);
+    matrix = new THREE.Matrix4();
     matrix.makeScale(2, 2, 2);
     merged.applyMatrix(matrix);
 
@@ -203,6 +214,8 @@
       CarMesh(chassis, supp, chasisLocalPos, suppLocalPos),
       carMaterial
     );
+    carMesh.castShadow = true;
+    carMesh.receiveShadow = true;
 
     let carRigidBody = createRigidBody(
       carMesh,
@@ -445,29 +458,38 @@
   }
 
   function initInput() {
-
-    window.addEventListener( 'keydown', function( event ) {
-
-      switch ( event.keyCode ) {
-        // Q
-        case 81:
-        armMovement = 1;
-        break;
-
-        // A
-        case 65:
-        armMovement = - 1;
-        break;
+    window.addEventListener( 'mousedown', function( event ) {
+      if ( ! clickRequest ) {
+        mouseCoords.set(
+          ( event.clientX / window.innerWidth ) * 2 - 1,
+          - ( event.clientY / window.innerHeight ) * 2 + 1
+        );
+        clickRequest = true;
       }
-
     }, false );
+  }
 
-    window.addEventListener( 'keyup', function( event ) {
-
-      armMovement = 0;
-
-    }, false );
-
+  function processClick() {
+    if ( clickRequest ) {
+      raycaster.setFromCamera( mouseCoords, camera );
+      // Creates a ball
+      var ballMass = 3;
+      var ballRadius = 0.4;
+      var ball = new THREE.Mesh( new THREE.SphereGeometry( ballRadius, 18, 16 ), ballMaterial );
+      ball.castShadow = true;
+      ball.receiveShadow = true;
+      var ballShape = new Ammo.btSphereShape( ballRadius );
+      ballShape.setMargin( margin );
+      pos.copy( raycaster.ray.direction );
+      pos.add( raycaster.ray.origin );
+      quat.set( 0, 0, 0, 1 );
+      var ballBody = createRigidBody( ball, ballShape, ballMass, pos, quat );
+      ballBody.setFriction( 0.5 );
+      pos.copy( raycaster.ray.direction );
+      pos.multiplyScalar( 14 );
+      ballBody.setLinearVelocity( new Ammo.btVector3( pos.x, pos.y, pos.z ) );
+      clickRequest = false;
+    }
   }
 
   function onWindowResize() {
@@ -493,6 +515,8 @@
     var deltaTime = clock.getDelta();
 
     updatePhysics( deltaTime );
+
+		processClick();
 
     controls.update( deltaTime );
 
