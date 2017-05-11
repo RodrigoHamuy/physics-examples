@@ -184,6 +184,7 @@
     return merged;
   }
 
+  var carChassis, liftBody;
   function createCar() {
     let chassis = [1, .5, 2];
     let chasisLocalPos = [0,1,0];
@@ -216,7 +217,7 @@
     carMesh.castShadow = true;
     carMesh.receiveShadow = true;
 
-    let carRigidBody = createRigidBody(
+    carChassis = createRigidBody(
       carMesh,
       compound,
       800, // Mass
@@ -225,31 +226,31 @@
     );
 
     // WHEELS
-    /*
-    let	wheelRadius = .5;
-    let	wheelWidth = .4;
-    let	wheelFriction = 1000;
+    /*{
+      let	wheelRadius = .5;
+      let	wheelWidth = .4;
+      let	wheelFriction = 1000;
 
-    let wheelShape = new Ammo.btCylinderShapeX(new Ammo.btVector3(wheelWidth,wheelRadius,wheelRadius));
-    // let wheelShape = new Ammo.btBoxShape(new Ammo.btVector3(.5, 2, .05) );
-    let wheelMesh = new THREE.Mesh(
-      new THREE.CylinderGeometry( wheelRadius, wheelRadius, wheelWidth )
-    );
-    wheelMesh.castShadow = true;
-    wheelMesh.receiveShadow = true;
+      let wheelShape = new Ammo.btCylinderShapeX(new Ammo.btVector3(wheelWidth,wheelRadius,wheelRadius));
+      // let wheelShape = new Ammo.btBoxShape(new Ammo.btVector3(.5, 2, .05) );
+      let wheelMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry( wheelRadius, wheelRadius, wheelWidth )
+      );
+      wheelMesh.castShadow = true;
+      wheelMesh.receiveShadow = true;
 
-    let wheelPos = new THREE.Vector3(0, 2.5, 3.05);
-		wheelBody = createRigidBody(
-      wheelMesh, wheelShape,
-      10, wheelPos, new THREE.Quaternion()
-    );
+      let wheelPos = new THREE.Vector3(0, 2.5, 3.05);
+  		wheelBody = createRigidBody(
+        wheelMesh, wheelShape,
+        10, wheelPos, new THREE.Quaternion()
+    );}
     */
 
     let liftDimensions = [.5, 2, .05];
-    let liftGeometry = new THREE.BoxGeometry(...liftDimensions);
     let liftPos = [0, 2.5, 3.05];
+    let liftGeometry = new THREE.BoxGeometry(...liftDimensions);
     let matrix = new THREE.Matrix4();
-    matrix.makeTranslation( 2, 2, 2 );
+    matrix.makeScale( 2, 2, 2 );
     liftGeometry.applyMatrix(matrix);
 
     let liftMesh = new THREE.Mesh(
@@ -259,16 +260,24 @@
 
 
     let liftShape = new Ammo.btBoxShape(new Ammo.btVector3( ...liftDimensions ));
-		let liftTrans = new Ammo.btTransform();
-		let liftStartPos = new Ammo.btVector3( 0, 2.5, 3.05 );
-		liftTrans.setIdentity();
-		liftTrans.setOrigin(liftStartPos);
-		let liftBody = createRigidBody(
+    liftBody = createRigidBody(
       liftMesh, liftShape,
       10,
       new THREE.Vector3(...liftPos),
       new THREE.Quaternion()
     );
+
+    let localA = new Ammo.btTransform();
+    let localB = new Ammo.btTransform();
+		localA.setIdentity();
+		localB.setIdentity();
+		localA.getBasis().setEulerZYX( 0, Math.PI*2, 0 );
+		localA.setOrigin( new Ammo.btVector3( 0, 1, 3.05 ) );
+		localB.getBasis().setEulerZYX( 0, Math.PI*2, 0 );
+		localB.setOrigin( new Ammo.btVector3( 0, -1.5, -.05 ) );
+		let liftHinge = new Ammo.btHingeConstraint(carChassis, liftBody, localA, localB);
+		liftHinge.setLimit(0, 0);
+		physicsWorld.addConstraint(liftHinge, true);
   }
 
   function LiftMesh() {
@@ -511,6 +520,13 @@
     renderer.render( scene, camera );
 
     time += deltaTime;
+
+
+    console.log(
+      liftBody.getWorldTransform().getOrigin().x()
+      + ',' + liftBody.getWorldTransform().getOrigin().y()
+      + ',' + liftBody.getWorldTransform().getOrigin().z()
+    );
 
   }
 
