@@ -184,7 +184,34 @@
     return merged;
   }
 
-  var carChassis, liftBody;
+  var carChassis, liftBody, vehicleRayCaster, vehicle, m_tuning;
+  var	gEngineForce = 0;
+  var gBreakingForce = 0;
+  var gVehicleSteering = 0;
+  var	maxEngineForce = 1000;
+
+
+  function clientResetScene()
+  {
+  	gVehicleSteering = 0;
+  	carChassis.setCenterOfMassTransform( new Ammo.btTransform() );
+  	carChassis.setLinearVelocity(new Ammo.btVector3(0,0,0));
+  	carChassis.setAngularVelocity(new Ammo.btVector3(0,0,0));
+  	// physicsWorld.getBroadphase().getOverlappingPairCache().cleanProxyFromPairs(
+    //   carChassis.getBroadphaseHandle(),
+    //   physicsWorld.getDispatcher()
+    // );
+  	// if (m_vehicle)
+  	// {
+  	// 	m_vehicle->resetSuspension();
+  	// 	for (int i=0;i<m_vehicle->getNumWheels();i++)
+  	// 	{
+  	// 		//synchronize the wheels with the (interpolated) chassis worldtransform
+  	// 		m_vehicle->updateWheelTransform(i,true);
+  	// 	}
+  	// }
+  }
+
   function createCar() {
     let chassis = [1, .5, 2];
     let chasisLocalPos = [0,1,0];
@@ -225,10 +252,12 @@
       new THREE.Quaternion() // Rotation
     );
 
+    clientResetScene();
+
     // WHEELS
+    let	wheelRadius = .5;
+    let	wheelWidth = .4;
     /*{
-      let	wheelRadius = .5;
-      let	wheelWidth = .4;
       let	wheelFriction = 1000;
 
       let wheelShape = new Ammo.btCylinderShapeX(new Ammo.btVector3(wheelWidth,wheelRadius,wheelRadius));
@@ -246,128 +275,73 @@
     );}
     */
 
-    let liftDimensions = [.5, 2, .05];
-    let liftPos = [0, 2.5, 3.05];
-    let liftGeometry = new THREE.BoxGeometry(...liftDimensions);
-    let matrix = new THREE.Matrix4();
-    matrix.makeScale( 2, 2, 2 );
-    liftGeometry.applyMatrix(matrix);
+    // Create vehicle
+    (function () {
+      tuning = new Ammo.btVehicleTuning();
+      vehicleRayCaster = new Ammo.btDefaultVehicleRaycaster(physicsWorld);
+      vehicle = new Ammo.btRaycastVehicle(tuning,carChassis,vehicleRayCaster);
 
-    let liftMesh = new THREE.Mesh(
-      liftGeometry,
-      carMaterial
-    );
+      ///never deactivate the vehicle
+      carChassis.setActivationState(4);
+
+      physicsWorld.addAction(vehicle);
+
+      var connectionHeight = 1.2;
+      var isFrontWheel=true;
+
+      //choose coordinate system
+      vehicle.setCoordinateSystem(0,1,2);
+
+      var connectionPointCS0 = new Ammo.btVector3(1-(0.3*wheelWidth),connectionHeight,2*1-wheelRadius);
+      let wheelDirectionCS0 = new Ammo.btVector3(0,-1,0);
+      let wheelAxleCS = new Ammo.btVector3(-1,0,0);
+      let suspensionRestLength = .6;
+      vehicle.addWheel(
+        connectionPointCS0,wheelDirectionCS0,wheelAxleCS,suspensionRestLength,wheelRadius,tuning,isFrontWheel
+      );
+      connectionPointCS0 = new Ammo.btVector3(-1+(0.3*wheelWidth),connectionHeight,2*1-wheelRadius);
+      vehicle.addWheel(
+        connectionPointCS0,wheelDirectionCS0,wheelAxleCS,suspensionRestLength,wheelRadius,tuning,isFrontWheel
+      );
+      connectionPointCS0 = new Ammo.btVector3(-1+(0.3*wheelWidth),connectionHeight,-2*1+wheelRadius);
+      isFrontWheel = false;
+      vehicle.addWheel(connectionPointCS0,wheelDirectionCS0,wheelAxleCS,suspensionRestLength,wheelRadius,tuning,isFrontWheel);
+      connectionPointCS0 = new Ammo.btVector3(1-(0.3*wheelWidth),connectionHeight,-2*1+wheelRadius);
+      vehicle.addWheel(connectionPointCS0,wheelDirectionCS0,wheelAxleCS,suspensionRestLength,wheelRadius,tuning,isFrontWheel);
 
 
-    let liftShape = new Ammo.btBoxShape(new Ammo.btVector3( ...liftDimensions ));
-    liftBody = createRigidBody(
-      liftMesh, liftShape,
-      10,
-      new THREE.Vector3(...liftPos),
-      new THREE.Quaternion()
-    );
+      let	suspensionStiffness = 20;
+      let	suspensionDamping = 2.3;
+      let	suspensionCompression = 4.4;
+      let wheelFriction = 1000;
+      let	rollInfluence = 0.1;
 
-    let localA = new Ammo.btTransform();
-    let localB = new Ammo.btTransform();
-		localA.setIdentity();
-		localB.setIdentity();
-		localA.getBasis().setEulerZYX( 0, Math.PI*2, 0 );
-		localA.setOrigin( new Ammo.btVector3( 0, 1, 3.05 ) );
-		localB.getBasis().setEulerZYX( 0, Math.PI*2, 0 );
-		localB.setOrigin( new Ammo.btVector3( 0, -1.5, -.05 ) );
-		let liftHinge = new Ammo.btHingeConstraint(
-      carChassis,
-      liftBody,
-      localA,
-      localB
-    );
-		liftHinge.setLimit(0.001, 0);
-    // liftHinge.enableAngularMotor(true, -.1, 1400);
-		physicsWorld.addConstraint(liftHinge, true);
-  }
+      for (let i=0;i<vehicle.getNumWheels();i++){
+        let wheel = vehicle.getWheelInfo(i);
+        wheel.m_suspensionStiffness = suspensionStiffness;
+        wheel.m_wheelsDampingRelaxation = suspensionDamping;
+        wheel.m_wheelsDampingCompression = suspensionCompression;
+        wheel.m_frictionSlip = wheelFriction;
+        wheel.m_rollInfluence = rollInfluence;
+      }
 
-  function LiftMesh() {
-
-  }
-
-  function createCargo(){
-    let cargoSide = [.1, 1, 1];
-    let cargoCenter = [2, .5, .5];
-
-    let cargoMaterial = new THREE.MeshPhongMaterial( {
-      color: 0xff01c6
-    } );
-    let cargoMesh = new THREE.Mesh(
-      new CargoMesh(cargoSide, cargoCenter), cargoMaterial
-    );
-    cargoMesh.castShadow = true;
-    cargoMesh.receiveShadow = true;
-
-    let loadCompound = new Ammo.btCompoundShape();
-		let loadShapeA = new Ammo.btBoxShape(new Ammo.btVector3(...cargoCenter));
-		let loadTrans = new Ammo.btTransform();
-		loadTrans.setIdentity();
-		loadCompound.addChildShape(loadTrans, loadShapeA);
-		let loadShapeB = new Ammo.btBoxShape(new Ammo.btVector3(...cargoSide));
-		loadTrans.setIdentity();
-		loadTrans.setOrigin(new Ammo.btVector3(2.1, 0.0, 0.0));
-		loadCompound.addChildShape(loadTrans, loadShapeB);
-		let loadShapeC = new Ammo.btBoxShape(new Ammo.btVector3(...cargoSide));
-		loadTrans.setIdentity();
-		loadTrans.setOrigin(new Ammo.btVector3(-2.1, 0.0, 0.0));
-		loadCompound.addChildShape(loadTrans, loadShapeC);
-		let loadBody  = createRigidBody(
-      cargoMesh, loadCompound,
-      350, //mass
-      new THREE.Vector3(0.0, 3.5, 7.0), // position
-      new THREE.Quaternion()// rotation
-    );
-  }
-
-  function CargoMesh(cargoSide, cargoCenter){
-    let merged = new THREE.Geometry();
-    let left = new THREE.BoxGeometry(...cargoSide);
-    let right = new THREE.BoxGeometry(...cargoSide);
-    let center = new THREE.BoxGeometry(...cargoCenter);
-    let matrix = new THREE.Matrix4();
-
-    matrix.makeTranslation(1.05, 0, 0);
-    left.applyMatrix(matrix);
-
-    matrix = new THREE.Matrix4();
-    matrix.makeTranslation(-1.05, 0, 0);
-    right.applyMatrix(matrix);
-
-    merged.merge(left);
-    merged.merge(right);
-    merged.merge(center);
-
-    matrix = new THREE.Matrix4();
-    matrix.makeScale(2, 2, 2);
-    merged.applyMatrix(matrix);
-
-    return merged;
+    })();
 
   }
 
-  function CapsuleMesh(radius, height) {
-    var merged = new THREE.Geometry();
-    var cyl = new THREE.CylinderGeometry(radius, radius, height);
-    var top = new THREE.SphereGeometry(radius);
-    var bot = new THREE.SphereGeometry(radius);
+  function updateCar() {
+    let wheelIndex = 2;
+		vehicle.applyEngineForce(gEngineForce,wheelIndex);
+		vehicle.setBrake(gBreakingForce,wheelIndex);
+		wheelIndex = 3;
+		vehicle.applyEngineForce(gEngineForce,wheelIndex);
+		vehicle.setBrake(gBreakingForce,wheelIndex);
 
-    var matrix = new THREE.Matrix4();
-    matrix.makeTranslation(0, height*0.5, 0);
-    top.applyMatrix(matrix);
-    var matrix = new THREE.Matrix4();
-    matrix.makeTranslation(0, -height*0.5, 0);
-    bot.applyMatrix(matrix);
-    // merge to create a capsule
-    merged.merge(top);
-    merged.merge(bot);
-    merged.merge(cyl);
-    merged.rotateZ(90*(Math.PI/180));
-    return merged;
+
+		wheelIndex = 0;
+		vehicle.setSteeringValue(gVehicleSteering,wheelIndex);
+		wheelIndex = 1;
+		vehicle.setSteeringValue(gVehicleSteering,wheelIndex);
   }
 
   function initPhysics() {
@@ -474,6 +448,10 @@
 
   function processClick() {
     if ( clickRequest ) {
+      gEngineForce = maxEngineForce;
+			gBreakingForce = 0;
+
+
       raycaster.setFromCamera( mouseCoords, camera );
       // Creates a ball
       var ballMass = 3;
@@ -516,6 +494,8 @@
   function render() {
 
     var deltaTime = clock.getDelta();
+
+    updateCar();
 
     updatePhysics( deltaTime );
 
