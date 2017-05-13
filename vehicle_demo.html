@@ -78,6 +78,16 @@
 	var pos = new THREE.Vector3();
 	var quat = new THREE.Quaternion();
 
+  // Car variables
+  var carChassis, liftBody, vehicleRayCaster, vehicle, m_tuning;
+  var	gEngineForce = 0;
+  var gBreakingForce = 0;
+  var gVehicleSteering = 0;
+  var	maxEngineForce = 1000;
+  var maxBreakingForce = 100;
+  var steeringIncrement = 0.04;
+  var steeringClamp = 0.3;
+  var wheelsThreeObjs = [];
 
   // - Main code -
 
@@ -184,12 +194,6 @@
     return merged;
   }
 
-  var carChassis, liftBody, vehicleRayCaster, vehicle, m_tuning;
-  var	gEngineForce = 0;
-  var gBreakingForce = 0;
-  var gVehicleSteering = 0;
-  var	maxEngineForce = 1000;
-
 
   function clientResetScene()
   {
@@ -257,23 +261,40 @@
     // WHEELS
     let	wheelRadius = .5;
     let	wheelWidth = .4;
-    /*{
-      let	wheelFriction = 1000;
+    let	wheelFriction = 1000;
 
-      let wheelShape = new Ammo.btCylinderShapeX(new Ammo.btVector3(wheelWidth,wheelRadius,wheelRadius));
-      // let wheelShape = new Ammo.btBoxShape(new Ammo.btVector3(.5, 2, .05) );
+    // let wheelShape = new Ammo.btCylinderShapeX(new Ammo.btVector3(wheelWidth,wheelRadius,wheelRadius));
+    // let wheelShape = new Ammo.btBoxShape(new Ammo.btVector3(.5, 2, .05) );
+
+    let wheelMaterial = new THREE.MeshPhongMaterial( {
+      color: 0x36c1e2
+    } );
+    let wheelGeometry = new THREE.CylinderGeometry( wheelRadius, wheelRadius, wheelWidth );
+
+    let matrix1 = new THREE.Matrix4();
+    matrix1.makeRotationZ( 90*(Math.PI/180) );
+    wheelGeometry.applyMatrix(matrix1);
+
+    for (let i = 0; i < 4; i++) {
       let wheelMesh = new THREE.Mesh(
-        new THREE.CylinderGeometry( wheelRadius, wheelRadius, wheelWidth )
+        wheelGeometry,
+        wheelMaterial
       );
       wheelMesh.castShadow = true;
       wheelMesh.receiveShadow = true;
+      scene.add(wheelMesh);
 
-      let wheelPos = new THREE.Vector3(0, 2.5, 3.05);
-  		wheelBody = createRigidBody(
-        wheelMesh, wheelShape,
-        10, wheelPos, new THREE.Quaternion()
-    );}
-    */
+      wheelsThreeObjs.push(wheelMesh)
+    }
+
+
+
+    // let wheelPos = new THREE.Vector3(0, 2.5, 3.05);
+    // wheelBody = createRigidBody(
+    //   wheelMesh, wheelShape,
+    //   10, wheelPos, new THREE.Quaternion()
+    // );
+
 
     // Create vehicle
     (function () {
@@ -342,6 +363,18 @@
 		vehicle.setSteeringValue(gVehicleSteering,wheelIndex);
 		wheelIndex = 1;
 		vehicle.setSteeringValue(gVehicleSteering,wheelIndex);
+
+    for (let i=0; i<vehicle.getNumWheels();i++)	{
+      //synchronize the wheels with the (interpolated) chassis worldtransform
+      vehicle.updateWheelTransform(i,true);
+      //draw wheels (cylinders)
+      let transformAux1 = vehicle.getWheelTransformWS(i);
+      let objThree = wheelsThreeObjs[i];
+      let p = transformAux1.getOrigin();
+      let q = transformAux1.getRotation();
+      objThree.position.set( p.x(), p.y(), p.z() );
+      objThree.quaternion.set( q.x(), q.y(), q.z(), q.w() );
+    }
   }
 
   function initPhysics() {
@@ -434,7 +467,61 @@
     return new THREE.MeshPhongMaterial( { color: createRandomColor() } );
   }
 
+  function accelerate() {
+    gEngineForce = maxEngineForce;
+    gBreakingForce = 0;
+  }
+  function decelerate() {
+    gBreakingForce = maxBreakingForce;
+    gEngineForce = 0;
+  }
+  function steerLeft() {
+    gVehicleSteering += steeringIncrement;
+    if (	gVehicleSteering > steeringClamp)
+    gVehicleSteering = steeringClamp;
+
+  }
+  function steerRight() {
+    gVehicleSteering -= steeringIncrement;
+    if (	gVehicleSteering < -steeringClamp)
+    gVehicleSteering = -steeringClamp;
+  }
+
   function initInput() {
+
+    window.addEventListener( 'keydown', function( event ) {
+      switch ( event.keyCode ) {
+        // W and
+        case 87:
+        // Up Arrow
+        case 38:
+        accelerate();
+        break;
+        // S and
+        case 83:
+        // Down Arrow
+        case 40:
+        decelerate();
+        break;
+        // A and
+        case 65:
+        // Left Arrow
+        case 37:
+        steerLeft();
+        break;
+        // D and
+        case 68:
+        // Right Arrow
+        case 39:
+        steerRight();
+        break;
+      }
+    }, false );
+
+    // window.addEventListener( 'keyup', function( event ) {
+    //   accelerate = false;
+    // }, false );
+
     window.addEventListener( 'mousedown', function( event ) {
       if ( ! clickRequest ) {
         mouseCoords.set(
@@ -448,10 +535,6 @@
 
   function processClick() {
     if ( clickRequest ) {
-      gEngineForce = maxEngineForce;
-			gBreakingForce = 0;
-
-
       raycaster.setFromCamera( mouseCoords, camera );
       // Creates a ball
       var ballMass = 3;
